@@ -1,0 +1,56 @@
+#!/usr/bin/env python2.7
+
+from optparse import OptionParser
+import subprocess
+
+
+import parsedatetime.parsedatetime as pdt
+import parsedatetime.parsedatetime_consts as pdc
+
+dparse = pdt.Calendar(pdc.Constants())
+
+def parseShow(txtshow):
+    band,  date, venue, location = [n.strip() for n in txtshow.split('\n') if n]
+    try:
+        dtup = dparse.parseDateText(date)
+        date = "%s-%02d-%02d" % dtup[0:3]
+    except:
+        try:
+            dtup = dparse.parseDate(date)
+            date = "%s-%02d-%02d" % dtup[0:3]
+        except:
+            pass
+
+    return band, date, venue, location
+
+def renameFiles(files, band, date, venue, location):
+    t = 1
+    for fname in files:
+        if fname.endswith('flac'):
+            cmd = 'metaflac --set-tag=ARTIST="%s" --set-tag=TRACKNUMBER="%s" --set-tag=ALBUM="%s %s, %s" "%s"' % (band, t,
+                                                                                     date,
+                                                                                     venue,
+                                                                                     location.replace(',',''),
+                                                                                     fname)
+        elif fname.endswith('mp3') or fname.endswith('mp2'):
+                        cmd = 'id3tag --artist="%s" --album="%s %s, %s" "%s" --track=%s' % (band,
+                                                                               date,
+                                                                               venue,
+                                                                               location.replace(',',''),
+                                                                               fname,
+                                                                                            t)
+        print ">>>", `cmd`
+        t += 1
+        subprocess.call(cmd, shell=True)
+        
+if __name__ == "__main__":
+    usage = """retitle <file1> <file2> <...>""
+    Retitle reads the setlist from the pasteboard.
+    """
+    parser = OptionParser(usage)
+    options, args = parser.parse_args()
+
+    txtlist = subprocess.check_output("pbpaste")
+    band, date, venue, location = parseShow(txtlist)
+    renameFiles(args, band, date, venue, location)
+        

@@ -1,0 +1,57 @@
+#!/usr/bin/env python2.7
+
+from optparse import OptionParser
+import subprocess
+import os
+import StringIO
+
+def parseTags(s):
+    tags = {}
+    for line in s.split('\n'):
+        if line:
+            tag, val = line.split('=')[0], "=".join(line.split('=')[1:])
+            tags[tag] = val
+
+    return tags
+
+trans = {'ARTIST':'--artist=%s',
+         'TITLE':'--song=%s',
+         'ALBUM':'--album=%s',
+         'Comment':'--comment=%s',
+         'COMMENT':'--comment=%s',
+         'DESCRIPTION':'--comment=%s',
+         'DATE':'--year=%s',
+         'TRACKNUMBER':'--track=%s'
+         }
+
+
+def getCmd(tags, target):
+    if target.endswith('.flac'):
+        opts = ["--set-tag=%s=%s"%(k,v) for k,v in tags.items()]
+        return ['metaflac']+opts+[target]
+    elif target.endswith('.mp3'):
+        opts = [trans[tag] % val for tag,val in tags.items() if tag in trans]
+        return ['id3tag']+opts+[target]
+
+def doit(source, dest):
+    sources = [x for x in os.listdir(source) if x.endswith('.flac')]
+    dests = [x for x in os.listdir(dest) if (x.endswith('.mp3') or x.endswith('.flac'))]
+    sources.sort()
+    dests.sort()
+
+    for f, m in zip(sources, dests):
+        assert(os.path.splitext(os.path.basename(f))[0] == os.path.splitext(os.path.basename(m))[0])
+        tags = parseTags(subprocess.check_output(['metaflac','--export-tags-to','-',os.path.join(source,f)]))
+        cmd = getCmd(tags, os.path.join(dest, m))
+        subprocess.check_call(cmd)
+        
+if __name__ == "__main__":
+    usage = """copytags <srcdir> <destdir>""
+    Copy tags from flac files to mp3 or flac files
+    """
+    parser = OptionParser(usage)
+    options, args = parser.parse_args()
+
+    source, dest = args
+    
+    doit(source, dest)

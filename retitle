@@ -1,0 +1,59 @@
+#!/usr/bin/env python2.7
+
+from optparse import OptionParser
+import re
+import subprocess
+
+ws = '[\\s\\-\\.#\\(\\)]'
+re1='%s?(\\d*?)%s*(.+)' % (ws, ws)
+
+rg = re.compile(re1,re.IGNORECASE|re.DOTALL)
+
+re2 = '([Ss]et [Ii123]+)|([Ee]ncore)'
+
+def parseList(txtlist):
+    setlist = []
+    print ">>>", txtlist
+    for line in txtlist:
+        try:
+            line = line.strip()
+            m = rg.search(line)
+            if not m and line:
+                print ">>> no match for", `line`
+            elif m:
+                setlist.append(m.group(2).strip())
+        except Exception, e:
+            print ">>>", e
+    return setlist
+
+def good(x):
+    if not x:
+        return False
+    if re.match(re2, x.strip()):
+        return False
+    return True
+
+def renameFiles(files, setlist):
+    files = [x for x in files if good(x)]
+    if len(files) != len(setlist):
+        print files, setlist
+        raise Exception("Not as many files (%s) as items in setlist (%s), make sure you copied the right setlist and specified the right files." % (len(files), len(setlist)))
+    for fname, title in zip(files, setlist):
+        if fname.endswith("flac"):
+            cmd = """metaflac --set-tag="TITLE=%s" "%s" """ % (title.replace('"','\\"'), fname)
+        elif fname.endswith('mp3') or fname.endswith('mp2'):
+            cmd = """id3tag --song="%s" "%s" """ % (title.replace('"','\\"'), fname)            
+        print ">>>", cmd
+        subprocess.call(cmd, shell=True)
+        
+if __name__ == "__main__":
+    usage = """retitle <file1> <file2> <...>""
+    Retitle reads the setlist from the pasteboard, parses and sets the title tags for the given flac files.
+    """
+    parser = OptionParser(usage)
+    options, args = parser.parse_args()
+
+    txtlist = subprocess.check_output("pbpaste").replace('\r', '').split('\n')
+    setlist = parseList(txtlist)
+    renameFiles(args, setlist)
+

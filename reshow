@@ -1,7 +1,10 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 
 from optparse import OptionParser
 import subprocess
+from mutagen.flac import FLAC
+from mutagen.id3 import TALB, TPE1, TRCK
+from mutagen.mp3 import MP3
 
 
 import parsedatetime.parsedatetime as pdt
@@ -25,23 +28,30 @@ def parseShow(txtshow):
 
 def renameFiles(files, band, date, venue, location):
     t = 1
+    location = location.replace(',','')
     for fname in files:
         if fname.endswith('flac'):
-            cmd = 'metaflac --set-tag=ARTIST="%s" --set-tag=TRACKNUMBER="%s" --set-tag=ALBUM="%s %s, %s" "%s"' % (band, t,
-                                                                                     date,
-                                                                                     venue,
-                                                                                     location.replace(',',''),
-                                                                                     fname)
+             cmd = 'metaflac --set-tag=ARTIST="%s" --set-tag=TRACKNUMBER="%s" --set-tag=ALBUM="%s %s, %s" "%s"' % (band, t,
+                                                                                      date,
+                                                                                      venue,
+                                                                                      location,
+                                                                                      fname)            
+             subprocess.call(cmd, shell=True)
         elif fname.endswith('mp3') or fname.endswith('mp2'):
-                        cmd = 'id3tag --artist="%s" --album="%s %s, %s" "%s" --track=%s' % (band,
-                                                                               date,
-                                                                               venue,
-                                                                               location.replace(',',''),
-                                                                               fname,
-                                                                                            t)
-        print ">>>", `cmd`
+                        # cmd = 'id3tag --artist="%s" --album="%s %s, %s" "%s" --track=%s' % (band,
+                        #                                                        date,
+                        #                                                        venue,
+                        #                                                        location.replace(',',''),
+                        #                                                        fname,
+                        #                                                                     t)
+            track = MP3(fname)
+            track["TALB"] = TALB(encoding=3, text="%s %s, %s" % (date, venue, location))
+            track["TPE1"] = TPE1(encoding=3, text=band)
+            track["TRCK"] = TRCK(encoding=3, text="%s" % t)
+            track.save()
+            
+        print ">>>", fname, "-> %s %s %s %s, %s" % (t, band, date, venue, location)
         t += 1
-        subprocess.call(cmd, shell=True)
         
 if __name__ == "__main__":
     usage = """retitle <file1> <file2> <...>""
@@ -50,7 +60,7 @@ if __name__ == "__main__":
     parser = OptionParser(usage)
     options, args = parser.parse_args()
 
-    txtlist = subprocess.check_output("pbpaste")
+    txtlist = subprocess.Popen(["pbpaste"], stdout=subprocess.PIPE).communicate()[0].replace('\r', '')
     band, date, venue, location = parseShow(txtlist)
     renameFiles(args, band, date, venue, location)
         

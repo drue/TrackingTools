@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+from optparse import OptionParser
+import multiprocessing
+import subprocess
+
+import re
+
+txt='    INDEX 01 00:00:00'
+
+re1='.*?'   # Non-greedy match on filler
+re2='(INDEX)'   # Word 1
+re3='( )'   # White Space 1
+re4='(01)'  # Integer Number 1
+re5='( )'   # White Space 2
+re6='(\\d+)'    # Integer Number 2
+re7='(:)'   # Any Single Character 1
+re8='(\\d+)'    # Integer Number 3
+re9='(:)'   # Any Single Character 2
+re10='(\\d+)'   # Integer Number 4
+
+rg = re.compile(re1+re2+re3+re4+re5+re6+re7+re8+re9+re10,re.IGNORECASE|re.DOTALL)
+
+def work(cmd):
+    subprocess.call(cmd, shell=True)
+    print ">>> done", cmd
+
+def parseSheet(sheet):
+    s = open(sheet).read()
+    times = []
+    for line in s.splitlines():
+        m = rg.search(line)
+        if m:
+            times.append(m.group(5) + ':' + m.group(7) + ':' + m.group(9))
+    return times
+    
+def doit(cuesheet, file, output, dropfirst=False, droplast=False):
+    times = parseSheet(cuesheet)
+    cmds = []
+    last = '00:00.00'
+    if times and times[0] == '00:00:00':
+        times = times[1:]
+        
+    track = 1
+    total = len(times)
+    if dropfirst:
+        total -= 1
+    if droplast:
+        total -= 1
+        
+    for time in times:
+        time = time[:time.rfind(":")] + '.' + time[time.rfind(":")+1:]
+
+        if not dropfirst or (track == total and not droplast):
+            cmds.append('nice flac -s --skip %s --until %s "%s" -o - | nice flac -s -8 - -o "%s"' %
+                        (last, time, file, output % ("%02d"% track)))
+            track += 1
+        else:
+            dropfirst = False
+        last = time
+
+    cmds.append('nice flac -s --skip %s "%s" -o - | nice flac -s -8 - -o "%s"' %
+                (last, file, output % ("%02d"% track)))
+        
+    count = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=count)
+    pool.map(work, cmds)
+
+
+if __name__ == "__main__":
+    usage = """cuecutter <cuesheet> <file> <output>
+            <output> = "blahblahblah-t%s.flac"
+    """
+    parser = OptionParser(usage)
+    parser.add_option("-f", action="store_true", dest="dropfirst", help="drop first track")
+    parser.add_option("-l", action="store_true", dest="droplast",  help="drop last track")
+    options, args = parser.parse_args()
+
+    if len(args) != 3:
+        print usage
+        
+    doit(args[0], args[1], args[2], options.dropfirst, options.droplast)

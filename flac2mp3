@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+import os, sys
+import multiprocessing
+import subprocess
+
+from optparse import OptionParser
+
+def work(cmd):
+    subprocess.call(cmd, shell=True)
+    print ">>> done", cmd
+    
+def doit(input, output, q):
+    cmds = []
+    files = os.listdir(input)
+    files.sort()
+    for i in files:
+        base, ext = os.path.splitext(i)
+	if (ext == '.flac' or ext == '.shn')  and not os.path.exists(os.path.join(output, base + '.mp3')):
+	    cmds.append('nice shntool cat -q "%s" | nice lame -S -h -V %s - "%s"' %
+                      (os.path.join(input, i), q, os.path.join(output, base + '.mp3')))
+    count = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=count)
+    pool.map(work, cmds)
+
+if __name__ == "__main__":
+    usage = """flac2mp3 <src_dir> <dest_dir>
+    -q  - LAME quality preset 0-9 (0 highest - 9 lowest, default 2)
+    """
+    parser = OptionParser(usage)
+    parser.add_option("-q", dest='q', default=2)
+    options, args = parser.parse_args()
+
+    if len(args) != 2:
+        print usage
+        
+    doit(args[0], args[1], options.q)

@@ -12,8 +12,8 @@ which or where it came from.  It needs to be converted to mutagen like the other
 
 ### cuecutter
 
-Cuecutter reads a cuesheet and uses it too cut up a flac file.  You
-specify the output filenames like this "aShow2012t%s.flac" and it puts
+Cuecutter reads a cuesheet and uses it to cut up a flac file.  You
+specify the output filenames like this `aShow2012t%s.flac` and it puts
 the track number where you want it.  You can also have it drop the
 first and/or last track.
 

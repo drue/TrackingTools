@@ -3,7 +3,7 @@
 import os, sys, stat
 
 exclude = [".DS_Store"]
-include = ['wav', 'flac', 'aiff', 'shn',]
+include = ['wav', 'flac', 'aiff', 'shn', 'jpg', 'JPG']
 def cmp(a, b):
     A = os.stat(a)[stat.ST_MTIME]
     B = os.stat(b)[stat.ST_MTIME]

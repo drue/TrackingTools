@@ -2,17 +2,15 @@
 
 from optparse import OptionParser
 import re
-from mutagen.flac import FLAC
-from mutagen.id3 import TIT2
-from mutagen.mp3 import MP3
 import subprocess
+import tagpy
 
 ws = '[\\s\\-\\.#\\(\\)]'
 re1='%s?(\\d*?)%s*(.+)' % (ws, ws)
 
 rg = re.compile(re1,re.IGNORECASE|re.DOTALL)
 
-re2 = '([Ss]et [Ii123]+)|([Ee]ncore)'
+re2 = '([Ss]et [Ii123]+)|([Ee]ncore)|([Dd]is[kc] [Ii1-9]+)'
 
 def parseList(txtlist):
     setlist = []
@@ -44,12 +42,8 @@ def renameFiles(files, setlist):
         print files, setlist
         raise Exception("Not as many files (%s) as items in setlist (%s), make sure you copied the right setlist and specified the right files." % (len(files), len(setlist)))
     for fname, title in zip(files, setlist):
-        if fname.endswith("flac"):
-            track = FLAC(fname)
-            track["title"] = title
-        elif fname.endswith('mp3') or fname.endswith('mp2'):
-            track = MP3(fname)
-            track["TIT2"] = TIT2(encoding=3, text=title)
+        track = tagpy.FileRef(fname)
+        track.tag().title = title
         track.save()
         print ">>>", fname, "->", title
         

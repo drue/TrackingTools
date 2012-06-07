@@ -1,0 +1,43 @@
+#!/usr/bin/env python2.7
+
+import os, sys
+import multiprocessing
+import subprocess
+
+from optparse import OptionParser
+
+def work(cmd):
+    with open('/dev/null', 'w') as f:
+        if subprocess.call(cmd, stdout=f, stderr=f, shell=True):
+            print ">>> FAILED", cmd
+
+def process(cmds, dirname, names):
+    try:
+        names.remove('.AppleDouble')
+    except ValueError:
+        pass
+    if dirname != '.AppleDouble':
+        for i in names:
+            base, ext = os.path.splitext(i)
+            if (ext == '.flac'):
+                cmds.append("flac -t '%s'" % os.path.join(dirname, i))
+
+def doit(input):
+    cmds = []
+    os.path.walk(input, process, cmds)
+    
+    count = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=count)
+    pool.map(work, cmds)
+
+if __name__ == "__main__":
+    usage = """pfc <dir>
+    Flac test all flacs in <dir> using one subprocess per core.
+    """
+    parser = OptionParser(usage)
+    options, args = parser.parse_args()
+
+    if len(args) != 1:
+        print usage
+    else:
+        doit(args[0])

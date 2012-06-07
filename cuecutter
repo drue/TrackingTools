@@ -51,7 +51,7 @@ def doit(cuesheet, file, output, dropfirst=False, droplast=False):
     for time in times:
         time = time[:time.rfind(":")] + '.' + time[time.rfind(":")+1:]
 
-        if not dropfirst or (track == total and not droplast):
+        if not dropfirst:
             cmds.append('nice flac -s --skip %s --until %s "%s" -o - | nice flac -s -8 - -o "%s"' %
                         (last, time, file, output % ("%02d"% track)))
             track += 1
@@ -59,17 +59,22 @@ def doit(cuesheet, file, output, dropfirst=False, droplast=False):
             dropfirst = False
         last = time
 
-    cmds.append('nice flac -s --skip %s "%s" -o - | nice flac -s -8 - -o "%s"' %
-                (last, file, output % ("%02d"% track)))
+    if not droplast:
+        cmds.append('nice flac -s --skip %s "%s" -o - | nice flac -s -8 - -o "%s"' %
+                    (last, file, output % ("%02d"% track)))
         
     count = multiprocessing.cpu_count()
     pool = multiprocessing.Pool(processes=count)
     pool.map(work, cmds)
+    #print '\n'.join(cmds)
 
 
 if __name__ == "__main__":
-    usage = """cuecutter <cuesheet> <file> <output>
-            <output> = "blahblahblah-t%s.flac"
+    usage = """
+    cuecutter [-f] [-l] <cuesheet> <file> <output>
+              <output> = "blahblahblah-t%s.flac"
+              -f = skip first track
+              -l = skip last track
     """
     parser = OptionParser(usage)
     parser.add_option("-f", action="store_true", dest="dropfirst", help="drop first track")

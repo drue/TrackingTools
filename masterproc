@@ -1,0 +1,132 @@
+#!/usr/bin/env python2.7
+
+from subprocess import check_output, check_call, STDOUT
+from multiprocessing import cpu_count, Pool
+from tempfile import mkdtemp
+import os
+from os.path import join
+import re
+    
+
+from optparse import OptionParser
+
+def parseWork(cmd):
+    return parseAdjust(check_output(cmd, shell=True, stderr=STDOUT))
+
+def parseAdjust(s):
+    # URL that generated this code:
+    # http://www.txt2re.com/index-python.php3?s=Volume%20adjustment:%20%20%20%20%20%20%20%201.897&-4&-12&-1&-47&-3&6
+    txt='Volume adjustment:        1.897'
+    re1='(Volume)'	# Word 1
+    re2='( )'	# White Space 1
+    re3='(adjustment)'	# Word 2
+    re4='(:)'	# Any Single Character 1
+    re5='(        )'	# White Space 2
+    re6='([+-]?\\d*\\.\\d+)(?![-+0-9\\.])'	# Float 1
+
+    rg = re.compile(re1+re2+re3+re4+re5+re6,re.IGNORECASE|re.DOTALL)
+    for line in s.split('\n'):
+        m = rg.search(line)
+        if m:
+            return float(m.group(6))
+    return 1.0
+
+def doit(basename, cuedir, sourcedir, destdir, clean=True, mp3=True, norm=True, first=[], last=[]):
+    pool = Pool(processes=cpu_count())
+    cues = [join(cuedir, i) for i in os.listdir(cuedir) if i.startswith(basename) and i.endswith(".cue")]
+    sources = [join(sourcedir, i) for i in os.listdir(sourcedir) if i.startswith(basename) and i.endswith(".flac")]
+    cues.sort()
+    sources.sort()
+    sources.reverse()
+
+    print ">>>", cues, sources
+    assert(len(cues) == len(sources))
+
+    destflac = join(destdir, basename + ".flac16")
+    destmp3 = join(destdir, basename + ".mp3f")
+    for d in [destflac, destmp3]:
+        try:
+            os.mkdir(d)
+        except OSError:
+            pass
+        
+    if clean:
+        # clean output dirs
+        print ">>> cleaning", destflac, destmp3
+        [os.unlink(join(destflac, i)) for i in os.listdir(destflac) if i.endswith(".flac")]
+        [os.unlink(join(destmp3, i)) for i in os.listdir(destmp3) if i.endswith(".mp3")]
+        
+
+    if norm:
+        v = 10000
+        cmds =["sox %s -n stat" % source for source in sources]
+        print ">>>", cmds
+        res = pool.map(parseWork, cmds)
+        v = min(res)
+        v -= 0.05
+
+        cmds = []
+        tmp = mkdtemp()
+        nsources = []
+        for n, source in zip(range(len(sources)), sources):
+            output = "%ss%s.wav" % (join(tmp, basename), n+1) # goes faster if we don't compress
+            nsources.append(output)
+            cmds.append("sox -v %s %s -b 16 %s rate 44100" % (v, source, output))
+        print ">>>",cmds
+        pool.map(os.system, cmds)
+        sources = nsources
+        
+    for n, cue, source in zip(range(len(cues)), cues, sources):
+        f = l = ''
+        if n+1 in first:
+            f = '-f'
+        if n+1 in last:
+            l = '-l'
+        cmd = "cuecutter %s %s %s %s %s/%ss%st%%s.flac" % (f, l, cue, source, destflac, basename, n+1)
+        print ">>>", cmd
+        os.system(cmd)
+
+    if mp3:
+        cmd = 'flac2mp3 %s %s' % (destflac, destmp3)
+        print ">>>", cmd
+        os.system(cmd)
+
+    if norm:
+        for f in os.listdir(tmp):
+            os.unlink(join(tmp, f))
+        os.rmdir(tmp)
+    
+if __name__ == "__main__":
+    usage = """masterproc <basename> <cuedir> <sourcedir> <destdir>
+    Process master mixes for distribution, using cue files to generate 16/44 flacs and mp3.
+    basename - base name of the show, such as mmw2012-02-06
+    sourcedir - has <basename>*.flac files to be processed
+    destdir - output dir that will contain <basename>.flac16 and <basename>.mp3f directories
+
+    -m - don't make mp3s
+    -n -  don't normalize
+    -c - don't clean output directories
+    -f - skip first track for these sets (i.e. -f 1,2,3
+    """
+    parser = OptionParser(usage)
+    parser.add_option("-m", action="store_false", dest="mp3", help="make mp3s", default=True)
+    parser.add_option("-n", action="store_false", dest="norm",  help="normalize", default=True)
+    parser.add_option("-c", action="store_false", dest="clean",  help="clean output dirs first", default=True)
+    parser.add_option("-f", dest="first",  help="skip first tracks")
+    parser.add_option("-l", dest="last",  help="skip last tracks")
+
+    options, args = parser.parse_args()
+    if len(args) != 4:
+        print usage
+    else:
+        if options.first:
+            first = [int(n) for n in options.first.split(',')]
+        else:
+            first = []
+        if options.last:
+            last = [int(n) for n in options.last.split(',')]
+        else:
+            last = []
+            
+        doit(*args, mp3=options.mp3, norm=options.norm, clean=options.clean, first=first, last=last)
+    

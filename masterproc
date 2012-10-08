@@ -31,16 +31,18 @@ def parseAdjust(s):
             return float(m.group(6))
     return 1.0
 
-def doit(basename, cuedir, sourcedir, destdir, clean=True, mp3=True, norm=True, first=[], last=[]):
+def doit(basename, cuedir, sourcedir, destdir, clean=True, mp3=True, norm=True, justnorm=False, first=[], last=[]):
     pool = Pool(processes=cpu_count())
     cues = [join(cuedir, i) for i in os.listdir(cuedir) if i.startswith(basename) and i.endswith(".cue")]
     sources = [join(sourcedir, i) for i in os.listdir(sourcedir) if i.startswith(basename) and i.endswith(".flac")]
     cues.sort()
     sources.sort()
-    sources.reverse()
+    if len(sources) > 1:
+        sources = [sources[-1]] + sources[:-1] # reaper numbering...
 
     print ">>>", cues, sources
-    assert(len(cues) == len(sources))
+    if not justnorm:
+        assert(len(cues) == len(sources))
 
     destflac = join(destdir, basename + ".flac16")
     destmp3 = join(destdir, basename + ".mp3f")
@@ -50,14 +52,14 @@ def doit(basename, cuedir, sourcedir, destdir, clean=True, mp3=True, norm=True, 
         except OSError:
             pass
         
-    if clean:
+    if clean and not justnorm:
         # clean output dirs
         print ">>> cleaning", destflac, destmp3
         [os.unlink(join(destflac, i)) for i in os.listdir(destflac) if i.endswith(".flac")]
         [os.unlink(join(destmp3, i)) for i in os.listdir(destmp3) if i.endswith(".mp3")]
         
 
-    if norm:
+    if norm or justnorm:
         v = 10000
         cmds =["sox %s -n stat" % source for source in sources]
         print ">>>", cmds
@@ -66,15 +68,18 @@ def doit(basename, cuedir, sourcedir, destdir, clean=True, mp3=True, norm=True, 
         v -= 0.05
 
         cmds = []
-        tmp = mkdtemp()
         nsources = []
+        tmp = mkdtemp(dir=sourcedir)
+        
         for n, source in zip(range(len(sources)), sources):
-            output = "%ss%s.wav" % (join(tmp, basename), n+1) # goes faster if we don't compress
+            output = "%ss%s.flac" % (join(tmp, basename), n+1)
             nsources.append(output)
-            cmds.append("sox -v %s %s -b 16 %s rate 44100" % (v, source, output))
+            cmds.append("sox -v %s %s -b 16 -C 1 %s rate 44100" % (v, source, output))
         print ">>>",cmds
         pool.map(os.system, cmds)
         sources = nsources
+        if justnorm:
+            return
         
     for n, cue, source in zip(range(len(cues)), cues, sources):
         f = l = ''
@@ -104,16 +109,20 @@ if __name__ == "__main__":
     destdir - output dir that will contain <basename>.flac16 and <basename>.mp3f directories
 
     -m - don't make mp3s
-    -n -  don't normalize
+    -n -  don't normalize and src
+    -N - only normalize and src, implies -c
     -c - don't clean output directories
-    -f - skip first track for these sets (i.e. -f 1,2,3
+    -f - skip first track for these sets (i.e. -f 1,2,3)
+    -l - skip last track for these sets (i.e. -f 1,2,3)
     """
     parser = OptionParser(usage)
-    parser.add_option("-m", action="store_false", dest="mp3", help="make mp3s", default=True)
-    parser.add_option("-n", action="store_false", dest="norm",  help="normalize", default=True)
+    parser.add_option("-m", action="store_false", dest="mp3", help="don't make mp3s", default=True)
+    parser.add_option("-n", action="store_false", dest="norm",  help="don't normalize and sample rate convert", default=True)
+    parser.add_option("-N", action="store_true", dest="justnorm",  help="only normalize and sample rate convert", default=False)
+
     parser.add_option("-c", action="store_false", dest="clean",  help="clean output dirs first", default=True)
-    parser.add_option("-f", dest="first",  help="skip first tracks")
-    parser.add_option("-l", dest="last",  help="skip last tracks")
+    parser.add_option("-f", dest="first",  help="skip first tracks for given sets (ex. -f 1,2)")
+    parser.add_option("-l", dest="last",  help="skip last tracks for given sets (ex. -l 1,2)")
 
     options, args = parser.parse_args()
     if len(args) != 4:
@@ -128,5 +137,5 @@ if __name__ == "__main__":
         else:
             last = []
             
-        doit(*args, mp3=options.mp3, norm=options.norm, clean=options.clean, first=first, last=last)
+        doit(*args, mp3=options.mp3, norm=options.norm, justnorm=options.justnorm, clean=options.clean, first=first, last=last)
     

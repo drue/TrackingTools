@@ -17,7 +17,7 @@ def doit(input, output, q):
     for i in files:
         base, ext = os.path.splitext(i)
         if (ext == '.flac' or ext == '.shn')  and not os.path.exists(os.path.join(output, base + '.mp3')):
-            cmds.append('nice shntool cat -q "%s" | nice lame -S -h -V %s - "%s"' %
+            cmds.append('nice shntool cat -q "%s" | nice lame -S -h -V "%s" - "%s"' %
                         (os.path.join(input, i), q, os.path.join(output, base + '.mp3')))
     count = multiprocessing.cpu_count()
     pool = multiprocessing.Pool(processes=count)

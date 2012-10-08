@@ -2,9 +2,8 @@
 
 from optparse import OptionParser
 import subprocess
-import tagpy
-
-
+from mutagen.flac import FLAC
+from mutagen import File
 
 import parsedatetime.parsedatetime as pdt
 import parsedatetime.parsedatetime_consts as pdc
@@ -43,10 +42,10 @@ def renameFiles(files, band, date, venue, location):
                         #                                                        location.replace(',',''),
                         #                                                        fname,
                         #                                                                     t)
-            track = tagpy.FileRef(fname)
-            track.tag().album = "%s %s, %s" % (date, venue, location)
-            track.tag().artist = band
-            track.tag().track = t
+            track = File(fname, easy=True)
+            track['album'] = "%s %s, %s" % (date, venue, location)
+            track['artist'] = band
+            track['tracknumber'] = str(t)
             track.save()
             
         print ">>>", fname, "-> %s %s %s %s, %s" % (t, band, date, venue, location)

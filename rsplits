@@ -2,6 +2,9 @@
 
 import os, sys, stat
 
+from optparse import OptionParser
+
+
 exclude = [".DS_Store"]
 include = ['wav', 'flac', 'aiff', 'shn', 'jpg', 'JPG']
 def cmp(a, b):
@@ -14,11 +17,13 @@ def cmp(a, b):
     return 0
     
 
-def doit(input, base, ext, start=1):
+def doit(input, base, ext, start=1, alpha=False):
     os.chdir(input)
     l = os.listdir(".")
-    #l.sort(cmp)
-    l.sort()
+    if alpha:
+        l.sort()
+    else:
+        l.sort(cmp)
     num = start
     was = None
     for i in l:
@@ -35,7 +40,19 @@ def doit(input, base, ext, start=1):
             num += 1
     
 if __name__ == "__main__":
-    if len(sys.argv) == 4:
-        doit(sys.argv[1], sys.argv[2], sys.argv[3])
-    elif len(sys.argv) == 5:
-        doit(sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])) 
+    usage = """rsplits |-a| <input_dir> <basename> <extension> |<startnum>|""
+       renames files with extensions wav/flac/aiff/shn/jpg/JPG
+       example:  rsplits . mmw2012-09-20s1t flac
+       startnum: start on nth file
+       -a alpha: use alpha order instead of default modified order
+    """
+    parser = OptionParser(usage)
+    parser.add_option("-a", dest='a', default=False, action="store_true")
+
+    options, args = parser.parse_args()
+
+
+    if len(args) == 3:
+        doit(*args, alpha=options.a)
+    elif len(args) == 4:
+        doit(args[0], args[1], args[2], int(args[3]), alpha=options.a)
